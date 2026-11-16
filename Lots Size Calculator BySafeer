@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Myfxbook-Style Position Size Calculator</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --accent: #38bdf8;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --border: #334155;
+    --success: #22c55e;
+    --danger: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .calculator {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.4);
+  }
+  h1 {
+    font-size: 1.25rem;
+    margin: 0 0 1.25rem;
+    color: var(--accent);
+  }
+  label {
+    display: block;
+    font-size: .85rem;
+    color: var(--muted);
+    margin-bottom: .35rem;
+  }
+  input, select {
+    width: 100%;
+    padding: .6rem .7rem;
+    background: #0f172a;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: .95rem;
+    margin-bottom: 1rem;
+    outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .75rem;
+  }
+  button {
+    width: 100%;
+    padding: .75rem;
+    background: var(--accent);
+    color: #0f172a;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: opacity .2s;
+  }
+  button:hover { opacity: .9; }
+  .results {
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+  }
+  .result-line {
+    display: flex;
+    justify-content: space-between;
+    padding: .45rem 0;
+    font-size: .95rem;
+  }
+  .result-line span:last-child {
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .highlight span:last-child {
+    color: var(--success);
+    font-size: 1.1rem;
+  }
+  .error {
+    color: var(--danger);
+    font-size: .9rem;
+    margin-top: .5rem;
+    min-height: 1.2rem;
+  }
+  .note {
+    font-size: .75rem;
+    color: var(--muted);
+    margin-top: 1rem;
+    line-height: 1.4;
+    border-left: 2px solid var(--accent);
+    padding-left: .75rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="calculator">
+  <h1>Position Size Calculator</h1>
+
+  <label for="balance">Account Balance ($)</label>
+  <input type="number" id="balance" value="10000" step="0.01" min="0">
+
+  <div class="row">
+    <div>
+      <label for="riskMode">Risk Mode</label>
+      <select id="riskMode">
+        <option value="percent">Percent (%)</option>
+        <option value="amount">Amount ($)</option>
+      </select>
+    </div>
+    <div>
+      <label for="riskValue">Risk Value</label>
+      <input type="number" id="riskValue" value="1" step="0.01" min="0">
+    </div>
+  </div>
+
+  <label for="pair">Instrument</label>
+  <select id="pair">
+    <option value="EURUSD">EUR/USD</option>
+    <option value="GBPUSD">GBP/USD</option>
+    <option value="USDJPY">USD/JPY</option>
+    <option value="AUDUSD">AUD/USD</option>
+    <option value="USDCAD">USD/CAD</option>
+    <option value="XAUUSD">Gold (XAU/USD)</option>
+  </select>
+
+  <label for="stopPips">Stop-Loss (pips)</label>
+  <input type="number" id="stopPips" value="20" step="0.1" min="0">
+
+  <button id="calcBtn">Calculate</button>
+
+  <div class="results">
+    <div class="result-line"><span>Risk Amount</span><span id="outRisk">—</span></div>
+    <div class="result-line"><span>Pip Value (per lot)</span><span id="outPip">—</span></div>
+    <div class="result-line highlight"><span>Position Size</span><span id="outLots">—</span></div>
+    <div class="result-line"><span>Units</span><span id="outUnits">—</span></div>
+  </div>
+
+  <div class="error" id="errorMsg"></div>
+
+  <p class="note">
+    <strong>Note on accuracy:</strong> This replica uses fixed pip values for each instrument.
+    The real Myfxbook calculator fetches <strong>live exchange rates</strong> to convert pip values
+    when your account currency differs from the pair's quote currency [citation:1][citation:2].
+    Always verify pip definitions and contract sizes with your broker before trading.
+  </p>
+</div>
+
+<script>
+  // Instrument presets: pip size and contract size per standard lot
+  const instruments = {
+    EURUSD: { pipSize: 0.0001, contractSize: 100000, pipValueUSD: 10 },
+    GBPUSD: { pipSize: 0.0001, contractSize: 100000, pipValueUSD: 10 },
+    USDJPY: { pipSize: 0.01,   contractSize: 100000, pipValueUSD: 6.7 }, // Approx; live rate varies
+    AUDUSD: { pipSize: 0.0001, contractSize: 100000, pipValueUSD: 10 },
+    USDCAD: { pipSize: 0.0001, contractSize: 100000, pipValueUSD: 7.3 }, // Approx; live rate varies
+    XAUUSD: { pipSize: 0.1,    contractSize: 100,    pipValueUSD: 10 }
+  };
+
+  const $ = id => document.getElementById(id);
+
+  function calculate() {
+    const balance   = parseFloat($('balance').value);
+    const riskMode  = $('riskMode').value;
+    const riskValue = parseFloat($('riskValue').value);
+    const stopPips  = parseFloat($('stopPips').value);
+    const pair      = $('pair').value;
+    const err       = $('errorMsg');
+
+    err.textContent = '';
+
+    // Validation
+    if (![balance, riskValue, stopPips].every(Number.isFinite)) {
+      err.textContent = 'Please enter valid numbers.';
+      return;
+    }
+    if (balance <= 0 || riskValue <= 0 || stopPips <= 0) {
+      err.textContent = 'All values must be greater than zero.';
+      return;
+    }
+
+    // 1. Calculate risk amount
+    const riskAmount = riskMode === 'percent'
+      ? balance * (riskValue / 100)
+      : riskValue;
+
+    if (riskAmount > balance) {
+      err.textContent = 'Risk amount exceeds account balance.';
+      return;
+    }
+
+    // 2. Get instrument data
+    const inst = instruments[pair];
+    const pipValuePerLot = inst.pipValueUSD; // Simplified: assumes USD account
+
+    // 3. Calculate position size: lots = risk / (stop * pipValue)
+    const lots = riskAmount / (stopPips * pipValuePerLot);
+    const units = lots * inst.contractSize;
+
+    // 4. Display results
+    $('outRisk').textContent  = '$' + riskAmount.toFixed(2);
+    $('outPip').textContent   = '$' + pipValuePerLot.toFixed(2);
+    $('outLots').textContent  = lots.toFixed(4) + ' lots';
+    $('outUnits').textContent = units.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  }
+
+  $('calcBtn').addEventListener('click', calculate);
+  calculate(); // Run on load
+</script>
+</body>
+</html>
